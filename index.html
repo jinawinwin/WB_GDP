@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>World Bank GDP Growth Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{--navy:#11243a;--blue:#2463eb;--pale:#f2f6fb;--ink:#182433;--muted:#64748b;--line:#dbe4ee}
+*{box-sizing:border-box}body{margin:0;background:#f6f8fb;color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:linear-gradient(120deg,#10243a,#1e4771);color:white;padding:28px max(20px,calc((100vw - 1240px)/2))}
+header h1{margin:0 0 5px;font-size:clamp(24px,4vw,34px)}header p{margin:0;color:#d6e4f4}
+main{max-width:1240px;margin:24px auto;padding:0 18px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+select,button{border:1px solid var(--line);border-radius:10px;padding:10px 13px;background:white;color:var(--ink);cursor:pointer;font:inherit}
+button.primary{background:var(--blue);border-color:var(--blue);color:white}button:focus,select:focus{outline:2px solid #8bb2ff}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.tab{border:1px solid #cad6e5;background:#fff}.tab.active{background:#173b62;color:#fff;border-color:#173b62}
+.panel,.card{background:white;border:1px solid var(--line);border-radius:15px;padding:18px;box-shadow:0 3px 12px #16365a0a}.why{background:#edf5ff;border:1px solid #c9def9;border-radius:12px;padding:13px 15px;margin:12px 0 18px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.kpi small{color:var(--muted)}.kpi strong{display:block;font-size:25px;margin-top:4px}
+.grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:14px}.section-title{margin:0 0 10px;font-size:18px}.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:right;padding:9px;border-bottom:1px solid #edf1f6;white-space:nowrap}th:first-child,td:first-child{text-align:left}th{background:#f6f8fb;color:#526174;font-weight:650}
+.muted{color:var(--muted);font-size:13px}.status{font-size:13px;color:#526174;margin-left:auto}.sources a{color:#1d56bf}.floating{position:fixed;right:20px;bottom:20px;z-index:10;display:flex;flex-direction:column;gap:8px}.floating button{box-shadow:0 6px 20px #0f274433}
+footer{max-width:1240px;margin:25px auto;padding:0 18px 30px;color:var(--muted);font-size:12px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.status{width:100%;margin:0}}
+@media print{header{background:#fff;color:#000;padding:10px}header p{color:#333}.toolbar,.tabs,.floating{display:none!important}body{background:white}.panel,.card{box-shadow:none;break-inside:avoid}.grid{grid-template-columns:1fr}main{max-width:none}}
+</style>
+</head>
+<body>
+<header><h1>World Bank GDP Growth Monitor</h1><p>국가별 실질 GDP 성장률 · 장기 성장 추세 · 공급망 클러스터 비교</p></header>
+<main>
+<div class="toolbar">
+<label for="year">기준 연도</label><select id="year"></select>
+<button id="refresh" class="primary">World Bank 데이터 새로고침</button>
+<button id="download">현재 데이터 CSV</button>
+<span class="status" id="status">데이터 불러오는 중…</span>
+</div>
+<div class="tabs" id="tabs"></div>
+<div class="why" id="why"></div>
+<div class="kpis">
+<div class="card kpi"><small>기준 연도 GDP 성장률</small><strong id="latest">—</strong><small id="latestLabel">실적 데이터</small></div>
+<div class="card kpi"><small>5년 연평균 성장률</small><strong id="cagr5">—</strong><small>실질 GDP 수준 기준</small></div>
+<div class="card kpi"><small>10년 연평균 성장률</small><strong id="cagr10">—</strong><small>실질 GDP 수준 기준</small></div>
+<div class="card kpi"><small>관측 데이터 최신 연도</small><strong id="lastYear">—</strong><small>World Bank WDI</small></div>
+</div>
+<div class="grid">
+<section class="panel"><h2 class="section-title">연도별 GDP 성장률 (%)</h2><canvas id="growthChart" height="115"></canvas><p class="muted">출처: World Bank, World Development Indicators (NY.GDP.MKTP.KD.ZG)</p></section>
+<section class="panel"><h2 class="section-title">장기 성장률 비교</h2><div class="tablewrap"><table><thead><tr><th>기간</th><th>시작 연도</th><th>종료 연도</th><th>연평균 성장률</th></tr></thead><tbody id="cagrTable"></tbody></table></div><p class="muted">CAGR = (종료 연도 실질 GDP / 시작 연도 실질 GDP)^(1/기간) − 1</p></section>
+</div>
+<section class="panel" style="margin-top:14px"><h2 class="section-title">클러스터 국가 비교</h2><div class="tablewrap"><table><thead><tr><th>국가</th><th>기준 연도 성장률</th><th>5년 CAGR</th><th>10년 CAGR</th><th>15년 CAGR</th><th>20년 CAGR</th><th>25년 CAGR</th><th>30년 CAGR</th></tr></thead><tbody id="compareTable"></tbody></table></div><p class="muted">비교 가능한 관측치가 없는 경우 — 로 표시합니다.</p></section>
+<section class="panel sources" style="margin-top:14px"><h2 class="section-title">당해 연도 GDP 성장률 전망</h2><p>World Bank GDP 성장률은 연간 실적 통계입니다. 전망치는 기관별 발표 시점과 전망 빈티지가 다르므로 실적과 분리해 확인하세요. 이 화면은 공식 전망 원문으로 연결합니다.</p><ul><li><a href="https://www.imf.org/en/Publications/WEO" target="_blank" rel="noopener">IMF World Economic Outlook (WEO)</a> — 국가별 전망 및 발표 빈티지</li><li><a href="https://www.worldbank.org/en/publication/global-economic-prospects" target="_blank" rel="noopener">World Bank Global Economic Prospects</a> — 세계·지역 전망</li><li><a href="https://www.oecd.org/en/publications/oecd-economic-outlook_16097408.html" target="_blank" rel="noopener">OECD Economic Outlook</a> — OECD 국가 중심 전망</li></ul><p class="muted">전망 수치를 입력할 때는 반드시 기관, 발표일, 전망 대상 연도, 원문 링크를 함께 기록합니다. 전망치를 World Bank 실적 데이터로 오인하지 않도록 별도 관리합니다.</p></section>
+</main>
+<div class="floating"><button class="primary" id="csv">⬇ 원자료 CSV</button><button id="pdf">▤ 보고서 PDF 저장</button></div>
+<footer>자료: World Bank API v2 / WDI. 업데이트 자동화는 홀수 달 15일 09:00 한국시간(00:00 UTC)에 실행됩니다. World Bank는 과거 수치를 개정할 수 있으므로 데이터 수집일을 함께 확인하세요.</footer>
+<script>
+const clusters=[
+{id:"core",name:"주요 경제국",countries:[["KOR","한국"],["USA","미국"],["CHN","중국"],["FRA","프랑스"],["DEU","독일"],["GBR","영국"],["JPN","일본"]],why:"주요 선진국과 중국의 성장률을 함께 비교하면 세계 수요와 통화·재정 여건의 차이를 파악하고, 한국 경제의 상대적 경기 위치를 점검할 수 있습니다."},
+{id:"asia-growth",name:"아시아 성장·공급망 다변화",countries:[["IND","인도"],["VNM","베트남"],["IDN","인도네시아"]],why:"인도·베트남·인도네시아는 내수 확대와 생산기지 이전의 수혜 가능성이 커, 아시아 성장 잠재력과 글로벌 기업의 공급망 다변화 방향을 함께 살피는 핵심 비교군입니다."},
+{id:"tech-hubs",name:"반도체·금융 허브",countries:[["TWN","대만"],["SGP","싱가포르"]],why:"대만의 반도체 제조 생태계와 싱가포르의 금융·물류 기능은 첨단산업 공급망과 아시아 교역 흐름에 큰 영향을 주므로, 기술 수요와 허브 경제의 경기 변화를 비교하기에 적합합니다."},
+{id:"resources",name:"자원·에너지",countries:[["CAN","캐나다"],["AUS","호주"]],why:"캐나다와 호주는 에너지·광물·농산물 공급 비중이 커 원자재 가격, 중국 수요, 글로벌 투자 사이클의 변화가 성장률에 미치는 영향을 분석하는 데 유용합니다."},
+{id:"reshoring",name:"공급망 재편",countries:[["MEX","멕시코"],["THA","태국"],["MYS","말레이시아"],["POL","폴란드"]],why:"멕시코는 미국 시장과의 연계 및 니어쇼어링, 태국·말레이시아는 동남아 제조업, 폴란드는 유럽 생산 네트워크를 대표해 공급망 재편의 지역별 수혜와 리스크를 비교할 수 있습니다."},
+{id:"commodities",name:"원자재·에너지 경기",countries:[["BRA","브라질"],["SAU","사우디아라비아"],["CHL","칠레"]],why:"브라질·사우디아라비아·칠레는 농산물·에너지·구리 등 원자재 노출도가 높아 국제 가격과 주요 수입국의 수요 변화가 성장률에 미치는 영향을 비교하기 좋습니다."},
+{id:"europe",name:"유럽 경제 비교",countries:[["NLD","네덜란드"],["ITA","이탈리아"],["ESP","스페인"]],why:"네덜란드·이탈리아·스페인은 유럽 단일시장 안에서도 무역·제조업·서비스업 구조가 달라, 유럽 경기와 주요 교역국의 성장 격차를 비교하는 데 도움이 됩니다."}
+];
+const allCountries=[...new Map(clusters.flatMap(c=>c.countries).map(x=>[x[0],x])).values()];
+const growthCode="NY.GDP.MKTP.KD.ZG",gdpCode="NY.GDP.MKTP.KD";
+let growth=[],gdp=[],active="core",chart;
+const fmt=x=>x==null||!Number.isFinite(x)?"—":(x*100).toLocaleString("en-US",{maximumFractionDigits:2,minimumFractionDigits:2})+"%";
+const valFmt=x=>x==null||!Number.isFinite(x)?"—":x.toLocaleString("en-US",{maximumFractionDigits:2,minimumFractionDigits:2})+"%";
+function buildTabs(){document.getElementById("tabs").innerHTML=clusters.map(c=>`<button class="tab ${c.id===active?"active":""}" data-id="${c.id}">${c.name}</button>`).join("");document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{active=b.dataset.id;buildTabs();render()})}
+async function fetchIndicator(code){let page=1,rows=[],pages=1;do{const u=`https://api.worldbank.org/v2/country/all/indicator/${code}?format=json&per_page=20000&page=${page}`;const r=await fetch(u);if(!r.ok)throw Error("World Bank API HTTP "+r.status);const j=await r.json();if(!j||!j[1])break;rows.push(...j[1]);pages=j[0].pages||1;page++}while(page<=pages);return rows.filter(x=>x.countryiso3code&&x.date&&x.value!==null).map(x=>({iso:x.countryiso3code,year:+x.date,value:+x.value,name:x.country.value}))}
+async function refresh(){const s=document.getElementById("status");s.textContent="World Bank API 조회 중…";try{[growth,gdp]=await Promise.all([fetchIndicator(growthCode),fetchIndicator(gdpCode)]);s.textContent=`수집 완료 · ${new Date().toLocaleString("ko-KR")}`;const years=[...new Set(growth.map(x=>x.year))].sort((a,b)=>b-a);const y=document.getElementById("year"),old=+y.value;y.innerHTML=years.map(n=>`<option value="${n}">${n}년</option>`).join("");y.value=years.includes(old)?old:years[0];render()}catch(e){s.textContent="데이터 조회 실패: "+e.message;document.getElementById("why").textContent="인터넷 연결 또는 World Bank API 응답을 확인하세요. 잠시 후 새로고침을 시도할 수 있습니다."}}
+function findVal(arr,iso,year){const r=arr.find(x=>x.iso===iso&&x.year===year);return r?r.value:null}
+function cagr(iso,end,n){const a=findVal(gdp,iso,end-n),b=findVal(gdp,iso,end);if(!(a>0&&b>0))return null;return (Math.pow(b/a,1/n)-1)*100}
+function growthVal(iso,year){return findVal(growth,iso,year)}
+function activeCluster(){return clusters.find(c=>c.id===active)||clusters[0]}
+function render(){if(!growth.length)return;const c=activeCluster(),year=+document.getElementById("year").value;document.getElementById("why").innerHTML=`<strong>${c.name}</strong><br>${c.why}`;const first=c.countries[0][0],latest=growthVal(first,year);document.getElementById("latest").textContent=valFmt(latest);document.getElementById("latestLabel").textContent=c.countries[0][1]+" · "+year+"년";document.getElementById("cagr5").textContent=valFmt(cagr(first,year,5));document.getElementById("cagr10").textContent=valFmt(cagr(first,year,10));document.getElementById("lastYear").textContent=Math.max(...growth.filter(x=>c.countries.some(z=>z[0]===x.iso)).map(x=>x.year));
+const yrs=[...new Set(growth.filter(x=>c.countries.some(z=>z[0]===x.iso)).map(x=>x.year))].sort((a,b)=>a-b);
+const series=c.countries.map(([iso,name])=>({label:name,data:yrs.map(y=>growthVal(iso,y)),borderWidth:2,pointRadius:0,tension:.15,spanGaps:true}));
+if(chart)chart.destroy();chart=new Chart(document.getElementById("growthChart"),{type:"line",data:{labels:yrs,datasets:series},options:{responsive:true,interaction:{mode:"index",intersect:false},plugins:{legend:{position:"bottom"}},scales:{y:{title:{display:true,text:"GDP 성장률 (%)"}}}}});
+document.getElementById("cagrTable").innerHTML=[5,10,15,20,25,30].map(n=>`<tr><td>${n}년</td><td>${year-n}</td><td>${year}</td><td>${valFmt(cagr(first,year,n))}</td></tr>`).join("");
+document.getElementById("compareTable").innerHTML=c.countries.map(([iso,name])=>`<tr><td>${name}</td><td>${valFmt(growthVal(iso,year))}</td>${[5,10,15,20,25,30].map(n=>`<td>${valFmt(cagr(iso,year,n))}</td>`).join("")}</tr>`).join("");
+}
+function downloadCSV(){const rows=[["country_code","country","year","gdp_growth_annual_percent","real_gdp_constant_usd"],...allCountries.flatMap(([iso,name])=>[...new Set([...growth,...gdp].filter(x=>x.iso===iso).map(x=>x.year))].sort((a,b)=>a-b).map(y=>[iso,name,y,growthVal(iso,y),findVal(gdp,iso,y)]))];const csv="\ufeff"+rows.map(r=>r.map(v=>v==null?"":`"${String(v).replaceAll('"','""')}"`).join(",")).join("\r\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));a.download="world_bank_gdp_growth.csv";a.click();URL.revokeObjectURL(a.href)}
+document.getElementById("refresh").onclick=refresh;document.getElementById("year").onchange=render;document.getElementById("download").onclick=downloadCSV;document.getElementById("csv").onclick=downloadCSV;document.getElementById("pdf").onclick=()=>window.print();buildTabs();refresh();
+</script>
+</body></html>
