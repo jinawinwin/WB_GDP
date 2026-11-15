@@ -1,6 +1,6 @@
 {
   "source": "World Bank Indicators API v2 / World Development Indicators",
-  "retrieved_at_utc": "2026-10-10T14:36:11.058724+00:00",
+  "retrieved_at_utc": "2026-11-15T03:41:08.771025+00:00",
   "indicators": {
     "NY.GDP.MKTP.KD.ZG": "gdp_growth_annual_percent",
     "NY.GDP.MKTP.KD": "real_gdp_constant_usd"
